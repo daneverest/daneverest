@@ -3,6 +3,8 @@
 - 🌱 I’m currently learning Python. I am looking to work in big-data, so I think this will be helpful in my career.
 - 📫 How to reach me: twitter @daneverest, telegram: t.me/daneverest
 
+[![GitHub Streak](https://github-readme-streak-stats.herokuapp.com/?user=daneverest)](https://git.io/streak-stats)
+
 <!---
 daneverest/daneverest is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
 You can click the Preview link to take a look at your changes.
