@@ -13,7 +13,7 @@
 
 - 📫 How to reach me **@daneverest on twitter**
 
-- 📄 Know about my experiences [https://drive.google.com/file/d/1IbXXxfj55s_KNdA3VpZnmZLvpEmhOTOi/view?usp=sharing](https://drive.google.com/file/d/1IbXXxfj55s_KNdA3VpZnmZLvpEmhOTOi/view?usp=sharing)
+- 📄 Know about my experiences [https://drive.google.com/file/d/1IbXXxfj55s_KNdA3VpZnmZLvpEmhOTOi/view?usp=sharing](Google Drive CV in PDF)
 
 <h3 align="left">Connect with me:</h3>
 <p align="left">
