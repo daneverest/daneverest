@@ -1,0 +1,127 @@
+modules:
+  rovo:agent:
+    - key: ms-fabric-agent
+      name: Microsoft Fabric Analyst
+      description: >
+        An AI analyst that connects to Microsoft Fabric to read, query and
+        interrogate your data lakes, semantic models and published reports.
+        Provides informed, evidenced insights and suggestions grounded in your
+        actual organisational data.
+      prompt: resource:fabric-resources;prompts/agent-prompt.txt
+      conversationStarters:
+        - What Microsoft Fabric workspaces do I have access to?
+        - Show me all datasets and reports in my workspace
+        - Query my sales data and give me a monthly trend summary
+        - What tables are available in my data lakehouse?
+        - Give me insights from the latest published reports
+        - Find anomalies or trends in my operational data
+      actions:
+        - list-workspaces
+        - list-workspace-items
+        - list-semantic-models
+        - execute-dax-query
+        - list-lakehouses
+        - list-lakehouse-tables
+        - list-reports
+
+  rovo:action:
+    - key: list-workspaces
+      name: List Microsoft Fabric Workspaces
+      description: >
+        Lists all Microsoft Fabric workspaces the service principal has access
+        to. Returns workspace IDs, display names, descriptions and capacity
+        information. Use this first to discover available workspaces before
+        exploring their contents.
+      function: list-workspaces
+
+    - key: list-workspace-items
+      name: List All Items in a Workspace
+      description: >
+        Lists every item in a Microsoft Fabric workspace, including semantic
+        models, reports, lakehouses, data pipelines, notebooks, and
+        eventstreams. Provides a full inventory of what is available. Requires
+        a workspaceId parameter (GUID string).
+      function: list-workspace-items
+
+    - key: list-semantic-models
+      name: List Semantic Models in a Workspace
+      description: >
+        Lists all Power BI semantic models (datasets) in a Microsoft Fabric
+        workspace. Returns model IDs and display names. Use this to identify
+        which semantic models can be queried with DAX. Requires a workspaceId
+        parameter (GUID string).
+      function: list-semantic-models
+
+    - key: execute-dax-query
+      name: Execute DAX Query on a Semantic Model
+      description: >
+        Runs a DAX (Data Analysis Expressions) query against a Power BI
+        semantic model to retrieve data, aggregations or calculations. Use
+        EVALUATE syntax. Always use TOPN or SUMMARIZECOLUMNS to limit results.
+        Requires workspaceId (GUID), datasetId (GUID), and a daxQuery string
+        using EVALUATE syntax.
+      function: execute-dax-query
+
+    - key: list-lakehouses
+      name: List Lakehouses in a Workspace
+      description: >
+        Lists all OneLake data lakehouses in a Microsoft Fabric workspace.
+        Returns lakehouse IDs and display names. Use this to discover available
+        lake storage before listing their tables. Requires a workspaceId
+        parameter (GUID string).
+      function: list-lakehouses
+
+    - key: list-lakehouse-tables
+      name: List Tables in a Lakehouse
+      description: >
+        Lists all delta and managed tables available in a Microsoft Fabric
+        lakehouse, including schema metadata. Use this to understand what data
+        is stored before writing queries. Requires workspaceId (GUID) and
+        lakehouseId (GUID) parameters.
+      function: list-lakehouse-tables
+
+    - key: list-reports
+      name: List Power BI Reports in a Workspace
+      description: >
+        Lists all published Power BI reports in a Microsoft Fabric workspace.
+        Returns report IDs, names, the dataset they are bound to and their
+        web URL. Use this to discover what reporting content exists. Requires
+        a workspaceId parameter (GUID string).
+      function: list-reports
+
+function:
+  - key: list-workspaces
+    handler: index.listWorkspaces
+  - key: list-workspace-items
+    handler: index.listWorkspaceItems
+  - key: list-semantic-models
+    handler: index.listSemanticModels
+  - key: execute-dax-query
+    handler: index.executeDaxQuery
+  - key: list-lakehouses
+    handler: index.listLakehouses
+  - key: list-lakehouse-tables
+    handler: index.listLakehouseTables
+  - key: list-reports
+    handler: index.listReports
+
+resources:
+  - key: fabric-resources
+    path: resources
+
+remotes:
+  - key: ms-identity
+    baseUrl: https://login.microsoftonline.com
+  - key: ms-fabric-api
+    baseUrl: https://api.fabric.microsoft.com
+  - key: powerbi-api
+    baseUrl: https://api.powerbi.com
+
+permissions:
+  scopes:
+    - external-fetch:execute
+    - read:chat:rovo
+
+app:
+  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
+  name: MS Fabric Rovo Integration

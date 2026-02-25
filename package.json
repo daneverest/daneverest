@@ -1,0 +1,13 @@
+{
+  "name": "ms-fabric-rovo-integration",
+  "version": "1.0.0",
+  "description": "Microsoft Fabric integration for Atlassian Rovo — enables Rovo to read, query and interrogate Fabric data lakes, semantic models and published reports",
+  "license": "MIT",
+  "dependencies": {
+    "@forge/api": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,39 +1,194 @@
-<h1 align="center">Hi 👋, I'm Dan</h1>
-<h3 align="center">A budding, beginner developer from the UK</h3>
+# MS Fabric Rovo Integration
 
-<p align="left"> <img src="https://komarev.com/ghpvc/?username=daneverest&label=Profile%20views&color=0e75b6&style=flat" alt="daneverest" /> </p>
+A [Atlassian Forge](https://developer.atlassian.com/platform/forge/) app that brings Microsoft Fabric data directly into [Rovo](https://www.atlassian.com/rovo). The Rovo agent can explore workspaces, query semantic models with DAX, inspect data lakehouses and surface published Power BI reports — enabling evidence-based insights grounded in your organisation's actual data.
 
-<p align="left"> <a href="https://github.com/ryo-ma/github-profile-trophy"><img src="https://github-profile-trophy.vercel.app/?username=daneverest" alt="daneverest" /></a> </p>
+---
 
-<p align="left"> <a href="https://twitter.com/daneverest" target="blank"><img src="https://img.shields.io/twitter/follow/daneverest?logo=twitter&style=for-the-badge" alt="daneverest" /></a> </p>
+## What It Does
 
-- 🌱 I’m currently learning **Introduction to Python (Harvard's edx CS50 course)**
+| Capability | Description |
+|---|---|
+| **Workspace discovery** | Lists all Fabric workspaces the integration has access to |
+| **Content inventory** | Enumerates every item in a workspace (datasets, reports, lakehouses, notebooks, pipelines) |
+| **Semantic model queries** | Runs DAX queries against Power BI semantic models and returns live results |
+| **Lakehouse exploration** | Lists lakehouses and their delta/managed tables |
+| **Report surfacing** | Lists published Power BI reports with direct web links |
 
-- 💬 Ask me about **Railway stock, services and operations.**
+The Rovo agent combines these capabilities to answer natural language data questions, spot trends, flag anomalies and make data-backed recommendations in the flow of Jira and Confluence work.
 
-- 📫 How to reach me **@daneverest on twitter**
+---
 
-- 📄 Know about my experiences [https://drive.google.com/file/d/1IbXXxfj55s_KNdA3VpZnmZLvpEmhOTOi/view?usp=sharing](Google Drive CV in PDF)
+## Architecture
 
-<h3 align="left">Connect with me:</h3>
-<p align="left">
-<a href="https://twitter.com/daneverest" target="blank"><img align="center" src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/twitter.svg" alt="daneverest" height="30" width="40" /></a>
-<a href="https://linkedin.com/in/dan.everest1343" target="blank"><img align="center" src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/linked-in-alt.svg" alt="dan.everest1343" height="30" width="40" /></a>
-<a href="https://fb.com/daneverest1" target="blank"><img align="center" src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/facebook.svg" alt="daneverest1" height="30" width="40" /></a>
-<a href="https://instagram.com/daneverest" target="blank"><img align="center" src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/instagram.svg" alt="daneverest" height="30" width="40" /></a>
-</p>
+```
+Rovo (chat)
+    └── rovo:agent  (MS Fabric Analyst)
+            └── rovo:action × 7
+                    └── src/index.ts  (Forge functions)
+                            └── src/fabric-client.ts
+                                    ├── GET  api.fabric.microsoft.com/v1/workspaces
+                                    ├── GET  api.fabric.microsoft.com/v1/workspaces/{id}/items
+                                    ├── GET  api.fabric.microsoft.com/v1/workspaces/{id}/semanticModels
+                                    ├── GET  api.fabric.microsoft.com/v1/workspaces/{id}/lakehouses
+                                    ├── GET  api.fabric.microsoft.com/v1/workspaces/{id}/lakehouses/{id}/tables
+                                    ├── GET  api.powerbi.com/v1.0/myorg/groups/{id}/reports
+                                    └── POST api.powerbi.com/v1.0/myorg/groups/{id}/datasets/{id}/executeQueries
+```
 
-<h3 align="left">Languages and Tools:</h3>
-<p align="left"> <a href="https://ifttt.com/" target="_blank" rel="noreferrer"> <img src="https://www.vectorlogo.zone/logos/ifttt/ifttt-ar21.svg" alt="ifttt" width="40" height="40"/> </a> <a href="https://www.python.org" target="_blank" rel="noreferrer"> <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/python/python-original.svg" alt="python" width="40" height="40"/> </a> </p>
+Authentication uses the **OAuth2 client credentials (service principal)** flow — an admin configures the integration once and all Rovo users benefit immediately.
 
-<p><img align="left" src="https://github-readme-stats.vercel.app/api/top-langs?username=daneverest&show_icons=true&locale=en&layout=compact" alt="daneverest" /></p>
+---
 
-<p>&nbsp;<img align="center" src="https://github-readme-stats.vercel.app/api?username=daneverest&show_icons=true&locale=en" alt="daneverest" /></p>
+## Prerequisites
 
-<p><img align="center" src="https://github-readme-streak-stats.herokuapp.com/?user=daneverest&" alt="daneverest" /></p>
+1. **Atlassian account** with Rovo enabled and Forge CLI installed
+2. **Microsoft Azure AD app registration** with:
+   - Application (client) ID
+   - Client secret
+   - API permission: `Power BI Service` — `Dataset.Read.All` and `Workspace.Read.All` (application type)
+3. **Fabric admin portal setting**: _Allow service principals to use Fabric APIs_ must be enabled
+4. **Service principal added as workspace member**: In each Fabric workspace you want Rovo to access, add the service principal as a Contributor (or higher)
 
-![Alt text](https://spotify-recently-played-readme.vercel.app/api?user=daneverest&unique={true|1|on|yes})
-<!---
-daneverest/daneverest is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
-You can click the Preview link to take a look at your changes.
---->
+---
+
+## Setup
+
+### 1. Clone and install dependencies
+
+```bash
+git clone <this-repo>
+cd daneverest
+npm install
+```
+
+### 2. Register the Forge app
+
+If this is a fresh deployment, register the app to get an app ID:
+
+```bash
+forge register
+```
+
+This updates the `app.id` in `manifest.yml`. Commit the change.
+
+### 3. Set environment variables
+
+```bash
+forge variables set FABRIC_TENANT_ID   "<your-azure-tenant-id>"
+forge variables set FABRIC_CLIENT_ID   "<your-azure-app-client-id>"
+forge variables set --encrypt FABRIC_CLIENT_SECRET "<your-azure-client-secret>"
+```
+
+Use `--environment staging` or `--environment production` flags as needed.
+
+### 4. Deploy
+
+```bash
+# Deploy to development environment
+forge deploy
+
+# Deploy to staging/production
+forge deploy --environment staging
+forge deploy --environment production
+```
+
+### 5. Install on your Atlassian site
+
+```bash
+forge install
+```
+
+Select your Atlassian cloud site when prompted. Choose **Rovo** as the product.
+
+---
+
+## Usage
+
+Once installed, open Rovo in Jira or Confluence and start a conversation with the **Microsoft Fabric Analyst** agent.
+
+**Example prompts:**
+
+- _"What workspaces do I have access to in Microsoft Fabric?"_
+- _"Show me all the datasets and reports in the Operations workspace."_
+- _"Query the sales semantic model and give me monthly revenue for 2024."_
+- _"What tables are in the data lake? I need to understand what operational data we have."_
+- _"Are there any anomalies in the Q3 sales figures?"_
+- _"Find the relevant report and share a link."_
+
+The agent will discover the right workspace, query the data and respond with evidence-backed findings.
+
+---
+
+## Azure AD App Registration — Quick Reference
+
+1. Go to **Azure Portal → Azure Active Directory → App registrations**
+2. Click **New registration** — give it a name (e.g. _Rovo Fabric Integration_)
+3. Record the **Application (client) ID** and **Directory (tenant) ID**
+4. Go to **Certificates & secrets → New client secret** — copy the secret value
+5. Go to **API permissions → Add a permission → Power BI Service**
+   - Add `Dataset.Read.All` (application permission)
+   - Add `Workspace.Read.All` (application permission)
+   - Click **Grant admin consent**
+6. In the **Fabric Admin Portal**, enable **Allow service principals to use Fabric APIs**
+7. In each target workspace, go to **Workspace settings → Access** and add the service principal as **Contributor**
+
+---
+
+## DAX Query Examples
+
+The Rovo agent writes DAX on your behalf. If you want to request specific queries, use natural language and the agent will translate them. Example patterns the agent uses:
+
+```dax
+-- Monthly revenue trend
+EVALUATE
+SUMMARIZECOLUMNS(
+    Sales[Month],
+    "Revenue", SUM(Sales[Amount])
+)
+ORDER BY Sales[Month] ASC
+
+-- Top 10 products by margin
+EVALUATE
+TOPN(10,
+    SUMMARIZECOLUMNS(
+        Products[ProductName],
+        "Margin", AVERAGE(Sales[Margin])
+    ),
+    [Margin], DESC
+)
+```
+
+---
+
+## Environment Variables
+
+| Variable | Description | Sensitive |
+|---|---|---|
+| `FABRIC_TENANT_ID` | Azure AD tenant (directory) ID | No |
+| `FABRIC_CLIENT_ID` | Azure app (client) ID | No |
+| `FABRIC_CLIENT_SECRET` | Azure app client secret | **Yes** — use `--encrypt` |
+
+---
+
+## Project Structure
+
+```
+manifest.yml                  — Forge app manifest (agent, actions, remotes)
+package.json
+tsconfig.json
+src/
+  index.ts                    — Rovo action handlers (7 actions)
+  fabric-client.ts            — MS Fabric & Power BI REST API client
+resources/
+  prompts/
+    agent-prompt.txt          — Rovo agent system prompt
+```
+
+---
+
+## Limitations
+
+- **Row-Level Security (RLS)**: Service principals cannot access datasets that use RLS or Single Sign-On (SSO). Use per-user OAuth2 for those scenarios.
+- **Query rate limit**: The Power BI execute queries API allows 120 requests/minute per service principal.
+- **Result size**: DAX queries return a maximum of 100,000 rows or 1,000,000 values (whichever is hit first).
+- **OneLake direct file access**: This integration queries via the Fabric REST API. Direct file-level OneLake access (ADLS Gen2 compatible) is not included.
