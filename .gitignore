@@ -1,0 +1,7 @@
+node_modules/
+build/
+dist/
+.forge/
+*.js.map
+.env
+.env.local
