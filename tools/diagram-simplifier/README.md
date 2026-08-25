@@ -1,0 +1,102 @@
+# Diagram Simplifier
+
+Turns a raw "Unit Diagrams" Word document (the D40-style diagram book export,
+one per day-type: SX/SO/Su) into the condensed "Simplifier" spreadsheet used
+for depot planning — one row per diagram number showing where it starts,
+when it enters/leaves passenger service, where (if anywhere) it goes back to
+a depot during the day, where it finishes up overnight, and its daily
+mileage.
+
+This was reverse-engineered from:
+
+- `D40_DRAFT_DEC26_{SX,SO,Su}_Ilford_Unit_Diagrams.docx` — the raw diagram
+  books (one diagram number can appear multiple times with different `Days`
+  codes, e.g. `MTWO`, `ThO`, `FO`, when the working varies through the week).
+- `Draft_Dec_26_Diagram_Simplifier_Fleet_North_08.04.26.xlsx` — an existing,
+  hand-built Simplifier for a different fleet/depot, used as the reference
+  for the target output format (`Diagram No / Origin / Yard Depart / Service
+  Depart / Day Stable / Arr Time / Dep Time / Stabling Location / PM Arr
+  Time / Mileage / Notes`).
+
+## How the raw format works
+
+Each diagram is a block of tab-separated paragraphs:
+
+```
+	IL	301	Class	720/5
+
+	Days		MTWO
+	From		14/12/2026
+	To		12/05/2027
+	Type		LTP
+
+	Arrive	P	Depart	P	Code	Route	Coupled	Leg	Mileage
+
+		Ilford EMUD			04+40		5H00			8.00	8.00
+		Liverpool St	05+04	7	05.12	7	2H00	Lea V		55.65	63.65
+		...
+	Loaded	657.61
+	Empty	8.50
+	Total	666.11
+```
+
+Key conventions decoded from the data:
+
+- A **headcode beginning with `5`** is an empty-stock/positioning leg; any
+  other leading digit (`1`, `2`, ...) is a passenger service.
+- `+` is used instead of `.` in a time to mark a working/passing time rather
+  than a public time — both mean the same clock time (`05+04` == `05.12` in
+  spirit, just not a public stop). A trailing `½` is a 30-second offset.
+- The diagram's first stop is always the depot departure ("Yard Depart");
+  the first subsequent stop whose *own* departing leg is not empty-stock is
+  where public service starts ("Service Depart").
+- A stop is treated as a **Day Stable** dwell when both the leg arriving
+  there *and* the leg leaving it are empty-stock legs — i.e. the unit goes
+  off to a depot/siding mid-diagram and comes back out again, as opposed to
+  simply calling at an ordinary station between passenger workings.
+- The last stop (no further departure) is the overnight **Stabling
+  Location**.
+- A free-text line can appear between `Type` and the stop table (e.g. `DO
+  NOT USE - maintenance unit`, or a routing caveat) — these are carried
+  through verbatim into the Notes column.
+- Diagram numbers that repeat with different `Days` codes are folded into a
+  single Simplifier row: the variant covering the most weekdays is shown as
+  the primary row, and any other variants that differ are summarised in
+  Notes (e.g. `ThO differs: origin ... stables ...`).
+
+## Usage
+
+```
+pip install -r requirements.txt
+python -m diagram_simplifier -o Simplifier.xlsx \
+    SX=path/to/..._SX_Unit_Diagrams.docx \
+    SO=path/to/..._SO_Unit_Diagrams.docx \
+    Su=path/to/..._Su_Unit_Diagrams.docx
+```
+
+For the standard D40 filenames (containing `_SX_`, `_SO_` or `_Su_`) the
+day-type label can be omitted and guessed from the filename:
+
+```
+python -m diagram_simplifier -o Simplifier.xlsx *_Unit_Diagrams.docx
+```
+
+Output is a workbook with one sheet per day-type (`Mon-Fri` / `Saturday` /
+`Sunday`) plus a `Full Detail` sheet listing every parsed leg of every
+diagram, for auditing the summary against the source document. Rows are
+colour-flagged: red for anything marked `DO NOT USE`, green for diagrams
+that are empty-stock/positioning only (no passenger service).
+
+Because the parsing rules above are generic (driven by headcode prefixes
+and diagram structure, not depot-specific names), this same tool should work
+unmodified on the next iteration of the timetable, or on diagrams for a
+different depot — just point it at the new set of three `.docx` files.
+
+## Layout
+
+- `diagram_simplifier/parser.py` — reads the raw `.docx` into structured
+  `Diagram`/`Stop` objects.
+- `diagram_simplifier/simplify.py` — reduces diagrams (and their day-of-week
+  variants) into one Simplifier row each.
+- `diagram_simplifier/workbook.py` — writes the styled `.xlsx`.
+- `diagram_simplifier/cli.py` — command-line entry point.
