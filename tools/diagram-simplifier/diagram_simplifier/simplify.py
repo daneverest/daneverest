@@ -19,7 +19,25 @@ from datetime import date, time
 from .coupling import build_coupling_spans, summarize_coupling
 from .parser import Diagram, Stop
 
-_DAY_TOKENS = ["Th", "Sa", "Su", "M", "T", "W", "F"]
+# Days-code grammar (per operational convention, not guessed):
+#   Day letters: M T W Th F S -- note Saturday is the single letter "S",
+#   not "Sa"; Sunday is never combined into a compound code, it only ever
+#   appears as the standalone whole-code "Su" labelling an entirely
+#   separate Sunday-only diagram/document.
+#   A compound code is a run of day letters followed by exactly one mode
+#   character:
+#     ...O  "Only"     -- applies ONLY to the named day(s)
+#     ...X  "eXcluded" -- applies to every day Mon-Sat EXCEPT the named
+#                         day(s) (Sunday is always excluded regardless)
+#   So e.g. "FSX" = Friday+Saturday excluded = Mon/Tue/Wed/Thu, and a bare
+#   "SX" = Saturday excluded = the conventional Mon-Fri "Saturdays
+#   excepted". A single diagram number's variants typically partition the
+#   week cleanly this way -- e.g. "FO" (the Friday exception) alongside
+#   "FSX" (every other weekday) together cover Mon-Fri with no gap or
+#   overlap.
+_DAY_TOKENS = ["Th", "M", "T", "W", "F", "S"]
+_WEEKDAY_INDEX = {"M": 0, "T": 1, "W": 2, "Th": 3, "F": 4, "S": 5}
+_ALL_WEEKDAYS = frozenset(_WEEKDAY_INDEX.values())  # Mon-Sat; Sunday is handled separately
 
 # Signal/reference locations are timing points on the running line (used to
 # regulate an empty-stock move), not a stabling facility -- a stop there
@@ -58,54 +76,44 @@ def _is_depot_like(location: str) -> bool:
     return bool(_DEPOT_RE.search(location))
 
 
-def day_coverage(days_code: str) -> int:
-    """Rough count of how many weekdays a ``Days`` code covers, used only to
-    pick which day-variant of a diagram is the "primary" one to headline."""
-    code = days_code.strip()
-    if code in ("SX", "MTWTF", "MTWTFO"):
-        return 5
-    found = []
-    i = 0
-    while i < len(code):
-        for tok in _DAY_TOKENS:
-            if code[i : i + len(tok)] == tok:
-                found.append(tok)
-                i += len(tok)
-                break
-        else:
-            i += 1
-    return len(found) if found else 1
-
-
-_WEEKDAY_INDEX = {"M": 0, "T": 1, "W": 2, "Th": 3, "F": 4, "Sa": 5, "Su": 6}
-
-
 def decode_days_weekdays(days_code: str) -> set[int]:
-    """Decode a ``Days`` code (e.g. ``"MTThO"``, ``"SX"``) into the set of
-    weekday indices it applies to (Monday=0 .. Sunday=6). Used to check
-    whether a diagram *variant* actually runs on a specific calendar date --
-    a single "one-off week" document (e.g. a Christmas STP book) can carry
-    several variants of the same diagram number, each valid over a
-    different, possibly overlapping date range and day pattern, of which
-    only one is normally live on any given date."""
+    """Decode a ``Days`` code (e.g. ``"MTThO"``, ``"FSX"``, ``"SX"``) into
+    the set of weekday indices it applies to (Monday=0 .. Saturday=5,
+    Sunday=6) per the O/X grammar above. Used both to pick which variant of
+    a diagram is the "primary" one to headline in the weekly-recurring
+    case (`day_coverage`), and to check whether a variant is genuinely live
+    on a specific calendar date (`variant_covers_date`) for a one-off
+    period where several date/day-scoped variants of the same diagram
+    number can coexist."""
     code = days_code.strip()
-    if code == "SX":
-        return {0, 1, 2, 3, 4}
-    if code == "SO":
-        return {5}
     if code == "Su":
         return {6}
+    if not code:
+        return set()
+
+    mode = code[-1]
+    body = code[:-1] if mode in ("O", "X") else code
+
     found: set[int] = set()
     i = 0
-    while i < len(code):
+    while i < len(body):
         for tok in _DAY_TOKENS:
-            if code[i : i + len(tok)] == tok:
+            if body[i : i + len(tok)] == tok:
                 found.add(_WEEKDAY_INDEX[tok])
                 i += len(tok)
                 break
         else:
             i += 1
+
+    if mode == "X":
+        return set(_ALL_WEEKDAYS - found)
     return found
+
+
+def day_coverage(days_code: str) -> int:
+    """How many weekdays a ``Days`` code covers, used to pick which
+    day-variant of a diagram is the "primary" one to headline."""
+    return len(decode_days_weekdays(days_code)) or 1
 
 
 def parse_ddmmyyyy(raw: str) -> date | None:

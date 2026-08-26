@@ -158,15 +158,25 @@ A special-working diagram book (Christmas STP diagrams, an engineering
 blockade) doesn't split neatly into recurring SX/SO/Su day-types the way a
 normal weekly timetable does. Instead, one document can carry *several
 variants of the same diagram number*, each scoped to its own date range and
-day pattern (e.g. `MTThO` valid 28/12–31/12, `FSX` valid 28/12–31/12 -- only
-one of which is actually live on any given date) and mix multiple depots
-and fleets in one file. `dated_cli.py` handles that case directly: pass it
-a target calendar date, and for each diagram number it keeps only the
-variant whose `Days` code covers that date's weekday *and* whose
-`From`–`To` range spans the date -- a variant whose range merely overlaps
-the date but whose day pattern doesn't (e.g. that `FSX` example above,
-which never actually lands on a Thursday within its own date range) is
-correctly left out.
+day pattern (e.g. `ThO` -- Thursday only -- alongside `FSX` -- every day
+except Friday and Saturday -- both valid 28/12–31/12, together covering
+Mon-Thu with no gap or overlap) and mix multiple depots and fleets in one
+file. `dated_cli.py` handles that case directly: pass it a target calendar
+date, and for each diagram number it keeps only the variant whose `Days`
+code covers that date's weekday *and* whose `From`–`To` range spans the
+date.
+
+`Days` codes follow this grammar: a run of day letters (`M` `T` `W` `Th`
+`F` `S` -- note Saturday is the single letter `S`, not `Sa`) followed by
+exactly one mode character -- `O` ("only", applies solely to the named
+day(s)) or `X` ("excluded", applies to every day Mon-Sat *except* the named
+day(s); Sunday is always excluded regardless and only ever appears as the
+standalone whole-code `Su`). So `FO` means Friday only, while `FSX` means
+Friday *and* Saturday excluded, i.e. Mon-Thu -- and a bare `SX` (Saturday
+excluded) is the conventional Mon-Fri "Saturdays excepted". `decode_days_weekdays`
+in `simplify.py` implements this and is the single source of truth used by
+both the weekly-timetable "which variant covers the most days" logic and
+this date-specific filtering.
 
 ```
 python -m diagram_simplifier.dated_cli \
