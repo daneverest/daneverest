@@ -152,11 +152,100 @@ and diagram structure, not depot-specific names), this same tool should work
 unmodified on the next iteration of the timetable, or on diagrams for a
 different depot — just point it at the new set of three `.docx` files.
 
+## Campaign rollout planner
+
+A second script, `campaign_cli.py`, runs alongside the Simplifier to plan a
+software-update or maintenance-campaign rollout — e.g. a Class 720 PIS
+update that isn't backwards-compatible, so a "new" unit can't couple with an
+"old" one until both sides are done. It reuses the exact same parsed
+diagram data (Origin, Stabling Location, Day Stable, and the coupling
+detection above), so it works on any timetable iteration you already have —
+there's no separate data entry.
+
+```
+python -m diagram_simplifier.campaign_cli \
+    --start-date 2026-12-14 --days 28 \
+    -o campaign_plan.xlsx \
+    SX=path/to/..._SX_Unit_Diagrams.docx \
+    SO=path/to/..._SO_Unit_Diagrams.docx \
+    Su=path/to/..._Su_Unit_Diagrams.docx
+```
+
+What it plans, per 12-hour shift (06:00-18:00 day / 18:00-06:00 night):
+
+- **Where updates can happen**: only at the 12 named sites (Ilford,
+  Southend, Colchester, Clacton, Cambridge, Bishops Stortford, Hertford,
+  Stansted, Harwich Parkeston Quay, Orient Way, Aldersbrook Sidings,
+  London Liverpool Street), and only while a unit is actually stabled or
+  genuinely dwelling there — read straight off the Simplifier's own Origin /
+  Stabling Location / Day Stable fields, never mid-journey.
+- **Technician capacity**: a fixed number of technicians per shift (2 by
+  default), each good for one unit per `minutes_per_unit` (1 hour by
+  default, but configurable per campaign), net of round-trip travel time
+  from Ilford (technicians are based there) and a lunch/personal-needs
+  break.
+- **Coupling safety**: a diagram is only updated once every diagram it has
+  *ever* run coupled with (see the coupling detection above) is also
+  updated — either already done, or done in the same shift if co-located.
+  Spare/never-coupled diagrams go first since they carry no such risk.
+  Requiring the *entire* chain of "ever coupled with" to flip at once turns
+  out to sweep up most of the fleet (a unit that swaps partners on
+  different days links into its partners' other partners) — which would
+  make a real rollout impossible — so this is checked one hop at a time,
+  and any diagram whose partner still has *its own* pending partner is
+  surfaced as a residual-risk warning for a controller to judge, not force.
+
+It outputs two views, per the brief:
+
+- **Technician Plan**: units to update per shift per location — a count,
+  never specific unit numbers, since a technician updates whatever's
+  physically there. A "Deferred - Blocked" sheet holds the detailed
+  per-diagram reasoning behind anything that couldn't be done that shift
+  (usually a coupling partner not yet ready).
+- **Controller Plan**: which specific diagrams have been updated and when,
+  plus a coupling note for each — safe to pair, or which partner to hold
+  off pairing with until it's also done.
+
+Plus a **Rollout Progress** sheet (cumulative % of the fleet updated over
+time), a **Coupling Reference** sheet (every diagram's direct partners and
+update status), and a **Coupling Warnings** sheet (the residual-risk notes
+above, all in one place).
+
+**Read the Assumptions sheet before using this for a real rollout.** The
+travel times between sites are rough placeholder estimates, not measured
+figures, and the break lengths and technician count are the numbers stated
+in the brief — all of it is a `CampaignConfig` field, overridable with a
+JSON file via `--config` rather than editing the code:
+
+```json
+{
+  "technicians_per_shift": 2,
+  "minutes_per_unit": 45,
+  "lunch_break_minutes": 30,
+  "personal_buffer_minutes": 15,
+  "sites": [
+    {"name": "Ilford", "keywords": ["ilford"], "travel_minutes_from_ilford": 0},
+    {"name": "Colchester", "keywords": ["colchester"], "travel_minutes_from_ilford": 70}
+  ]
+}
+```
+
+What this can't do: know *why* two units shouldn't mix (a software version,
+a fault restriction) or the true size of the fleet to roll out — that's
+fleet/engineering data the diagram book doesn't contain. It gives the
+scheduling half of the problem: an accurate plan for when and where units
+can be updated, and which diagrams are safe to pair, given what the
+diagrams themselves show.
+
 ## Layout
 
 - `diagram_simplifier/parser.py` — reads the raw `.docx` into structured
   `Diagram`/`Stop` objects.
 - `diagram_simplifier/simplify.py` — reduces diagrams (and their day-of-week
   variants) into one Simplifier row each.
-- `diagram_simplifier/workbook.py` — writes the styled `.xlsx`.
-- `diagram_simplifier/cli.py` — command-line entry point.
+- `diagram_simplifier/coupling.py` — detects diagram-to-diagram coupling.
+- `diagram_simplifier/workbook.py` — writes the styled Simplifier `.xlsx`.
+- `diagram_simplifier/cli.py` — Simplifier command-line entry point.
+- `diagram_simplifier/campaign.py` — campaign rollout scheduling engine.
+- `diagram_simplifier/campaign_workbook.py` — writes the campaign `.xlsx`.
+- `diagram_simplifier/campaign_cli.py` — campaign command-line entry point.

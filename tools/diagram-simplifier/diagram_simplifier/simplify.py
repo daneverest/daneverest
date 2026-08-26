@@ -43,8 +43,15 @@ _DEPOT_RE = re.compile(
 )
 
 
-def _is_signal_location(location: str) -> bool:
+def is_signal_location(location: str) -> bool:
+    """True when `location` is a signal/berth reference point (e.g.
+    "Stratford Sig L261", "Ipswich CO822") rather than a real place -- used
+    elsewhere (e.g. campaign site matching) wherever a signal name must not
+    be mistaken for a stabling facility."""
     return bool(_SIGNAL_WORD_RE.search(location) or _SIGNAL_CODE_RE.search(location))
+
+
+_is_signal_location = is_signal_location  # internal alias used below
 
 
 def _is_depot_like(location: str) -> bool:
