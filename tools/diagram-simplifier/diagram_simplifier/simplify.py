@@ -12,12 +12,36 @@ variants into the Notes column as call-outs.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import time
 
 from .parser import Diagram, Stop
 
 _DAY_TOKENS = ["Th", "Sa", "Su", "M", "T", "W", "F"]
+
+# Signal/reference locations are timing points on the running line (used to
+# regulate an empty-stock move), not a stabling facility -- a stop there
+# should never be picked as the "Day Stable" location, however long the
+# recorded dwell looks.
+_SIGNAL_RE = re.compile(r"\bSig(nal)?\b", re.IGNORECASE)
+
+# Locations that look like an actual depot/siding facility rather than an
+# ordinary running-line station. Preferred over a plain station when more
+# than one candidate dwell exists.
+_DEPOT_RE = re.compile(
+    r"\b(EMUD|TMD|T&RSMD|CS|CSD|CSN|CHS|C\.H\.S\.|Sidings|Sdgs|Yard|Depot|"
+    r"Recep(tion)?(\s+Rd)?|Loop|Lp|Wash\s+Road|Stabling)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_signal_location(location: str) -> bool:
+    return bool(_SIGNAL_RE.search(location))
+
+
+def _is_depot_like(location: str) -> bool:
+    return bool(_DEPOT_RE.search(location))
 
 
 def day_coverage(days_code: str) -> int:
@@ -49,6 +73,15 @@ class Dwell:
     arrive: time | None
     depart: time | None
 
+    @property
+    def duration_minutes(self) -> int:
+        if self.arrive is None or self.depart is None:
+            return 0
+        a = self.arrive.hour * 60 + self.arrive.minute
+        d = self.depart.hour * 60 + self.depart.minute
+        diff = d - a
+        return diff if diff >= 0 else diff + 24 * 60
+
 
 @dataclass
 class SimplifiedRow:
@@ -79,10 +112,18 @@ def _reduce_variant(d: Diagram) -> dict:
     * The first stop is always a depot departure (Yard Depart).
     * The first subsequent stop whose own departing leg is *not* empty
       stock is where public/passenger service begins (Service Depart).
-    * A stop strictly before the last one is a "Day Stable" dwell if *both*
-      the leg arriving there and the leg leaving it are empty-stock legs
-      (i.e. the unit goes off to a depot mid-diagram and comes back out),
-      as opposed to simply calling at a station between passenger workings.
+    * A stop strictly before the last one is a candidate "Day Stable" dwell
+      if *both* the leg arriving there and the leg leaving it are
+      empty-stock legs (i.e. the unit goes off to a depot mid-diagram and
+      comes back out), as opposed to simply calling at a station between
+      passenger workings.
+    * Candidate dwells at a signal/reference location (e.g. "Stratford Sig
+      L261") are discarded outright -- that's the unit regulating on the
+      running line, not stabling. Among the remaining candidates, the one
+      at an actual depot/siding-type location (EMUD, CS, Sidings, Loop...)
+      is preferred over a plain station, and ties are broken by the longest
+      dwell -- a fleeting reversal is far less likely to be the "relevant"
+      stabling than a long sit at a proper facility.
     * The final stop (no further departure) is the overnight Stabling
       Location.
     """
@@ -124,12 +165,13 @@ def _reduce_variant(d: Diagram) -> dict:
         ):
             dwells.append(Dwell(stops[i + 1].location, stops[i + 1].arrive_time, stops[i + 1].depart_time))
 
-    if dwells:
-        primary = dwells[0]
+    candidates = [dw for dw in dwells if not _is_signal_location(dw.location)]
+    if candidates:
+        primary = max(candidates, key=lambda dw: (_is_depot_like(dw.location), dw.duration_minutes))
         result["day_stable"] = primary.location
         result["arr_time"] = primary.arrive
         result["dep_time"] = primary.depart
-        result["extra_dwells"] = dwells[1:]
+        result["extra_dwells"] = [dw for dw in candidates if dw is not primary]
 
     last = stops[-1]
     result["stabling_location"] = last.location
