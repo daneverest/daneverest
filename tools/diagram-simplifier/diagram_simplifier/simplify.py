@@ -23,8 +23,14 @@ _DAY_TOKENS = ["Th", "Sa", "Su", "M", "T", "W", "F"]
 # Signal/reference locations are timing points on the running line (used to
 # regulate an empty-stock move), not a stabling facility -- a stop there
 # should never be picked as the "Day Stable" location, however long the
-# recorded dwell looks.
-_SIGNAL_RE = re.compile(r"\bSig(nal)?\b", re.IGNORECASE)
+# recorded dwell looks. Some depots spell these out ("Stratford Sig L261",
+# "Crown Point Sig CO1498"); others drop the word and just give the bare
+# signal/berth code ("Ipswich CO822", "Bury St Eds BY19") -- both are
+# caught here, the second via its telltale letters-then-digits shape
+# (matched case-sensitively so an ordinary capitalised place name doesn't
+# false-positive).
+_SIGNAL_WORD_RE = re.compile(r"\bSig(nal)?\b", re.IGNORECASE)
+_SIGNAL_CODE_RE = re.compile(r"\b[A-Z]{1,3}\d{2,4}\b")
 
 # Locations that look like an actual depot/siding facility rather than an
 # ordinary running-line station. Preferred over a plain station when more
@@ -37,7 +43,7 @@ _DEPOT_RE = re.compile(
 
 
 def _is_signal_location(location: str) -> bool:
-    return bool(_SIGNAL_RE.search(location))
+    return bool(_SIGNAL_WORD_RE.search(location) or _SIGNAL_CODE_RE.search(location))
 
 
 def _is_depot_like(location: str) -> bool:
@@ -72,6 +78,7 @@ class Dwell:
     location: str
     arrive: time | None
     depart: time | None
+    marker: str | None = None
 
     @property
     def duration_minutes(self) -> int:
@@ -135,6 +142,7 @@ def _reduce_variant(d: Diagram) -> dict:
         "day_stable": "",
         "arr_time": None,
         "dep_time": None,
+        "day_stable_marker": None,
         "stabling_location": "",
         "pm_arr_time": None,
         "extra_dwells": [],
@@ -163,14 +171,28 @@ def _reduce_variant(d: Diagram) -> dict:
             and outgoing.startswith("5")
             and stops[i + 1].depart_time
         ):
-            dwells.append(Dwell(stops[i + 1].location, stops[i + 1].arrive_time, stops[i + 1].depart_time))
+            dwells.append(
+                Dwell(
+                    stops[i + 1].location,
+                    stops[i + 1].arrive_time,
+                    stops[i + 1].depart_time,
+                    marker=stops[i + 1].marker,
+                )
+            )
 
     candidates = [dw for dw in dwells if not _is_signal_location(dw.location)]
     if candidates:
-        primary = max(candidates, key=lambda dw: (_is_depot_like(dw.location), dw.duration_minutes))
+        # An explicit marker (e.g. "FUEL", "STANDBY UNIT") is definitive
+        # evidence of a genuine servicing dwell, so it outranks a location
+        # merely looking depot-like; duration is still the final tie-break.
+        primary = max(
+            candidates,
+            key=lambda dw: (dw.marker is not None, _is_depot_like(dw.location), dw.duration_minutes),
+        )
         result["day_stable"] = primary.location
         result["arr_time"] = primary.arrive
         result["dep_time"] = primary.depart
+        result["day_stable_marker"] = primary.marker
         result["extra_dwells"] = [dw for dw in candidates if dw is not primary]
 
     last = stops[-1]
@@ -180,10 +202,15 @@ def _reduce_variant(d: Diagram) -> dict:
     return result
 
 
+def _describe_dwell(dw: Dwell, *, primary: bool) -> str:
+    span = f"{dw.location} {_fmt_time(dw.arrive)}-{_fmt_time(dw.depart)}"
+    if dw.marker:
+        return f"{dw.marker.capitalize()} at {span}"
+    return span if primary else f"also stables {span}"
+
+
 def _describe_dwells(dwells: list[Dwell]) -> str:
-    return "; ".join(
-        f"also stables {dw.location} {_fmt_time(dw.arrive)}-{_fmt_time(dw.depart)}" for dw in dwells
-    )
+    return "; ".join(_describe_dwell(dw, primary=False) for dw in dwells)
 
 
 def _row_differs(a: dict, b: dict) -> bool:
@@ -218,6 +245,18 @@ def build_simplified_rows(diagrams: list[Diagram]) -> list[SimplifiedRow]:
         for n in primary.notes:
             if n not in notes:
                 notes.append(n)
+        if primary_reduced["day_stable_marker"]:
+            notes.append(
+                _describe_dwell(
+                    Dwell(
+                        primary_reduced["day_stable"],
+                        primary_reduced["arr_time"],
+                        primary_reduced["dep_time"],
+                        marker=primary_reduced["day_stable_marker"],
+                    ),
+                    primary=True,
+                )
+            )
         if primary_reduced["extra_dwells"]:
             notes.append(_describe_dwells(primary_reduced["extra_dwells"]))
 

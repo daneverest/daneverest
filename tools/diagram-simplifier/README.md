@@ -63,6 +63,32 @@ Key conventions decoded from the data:
   single Simplifier row: the variant covering the most weekdays is shown as
   the primary row, and any other variants that differ are summarised in
   Notes (e.g. `ThO differs: origin ... stables ...`).
+- A candidate Day Stable dwell at a **signal/reference location** (e.g.
+  "Stratford Sig L261", or a bare berth code like "Ipswich CO822") is
+  discarded outright — that's the unit regulating on the running line, not
+  stabling, however long the recorded dwell looks. Among the remaining
+  candidates, one at an actual depot/siding-type location (EMUD, CS,
+  Sidings, Loop...) is preferred over a plain station, and an explicit
+  in-diagram marker (see below) outranks both; duration is the final
+  tie-break.
+- Some depots (e.g. Norwich Crown Point) record a servicing dwell — a fuel
+  stop, a standby-unit period — as two physical rows for the same location
+  (an arrival-only row, then a separate departure-only row) with a bare
+  marker line such as `FUEL` or `STANDBY UNIT` in between. These are
+  recombined into one logical stop and surfaced as a descriptive note, e.g.
+  `Fuel at Colchester CS 20:04-20:45`, matching the reference spreadsheet's
+  own "Fuel at NCP 21:56-23:15" convention.
+- Depots don't all export identically: an extra column in the stop table
+  (e.g. Crown Point's "Fuel" column, which shifts every field after it),
+  meta lines at a different tab depth, or an unused field (`Off`) are all
+  handled by reading each diagram's own column-header row and scanning for
+  labels by name rather than assuming a fixed layout — see `parser.py`.
+- When a depot's diagrams span more than one unit class (Crown Point diagrams
+  more than one class per day-type — 745/0, 745/1, 755/3, 755/4), each
+  sheet is split into a block per class with its own "CLASS X" sub-header
+  and mileage total, mirroring the reference spreadsheet's "CLASS 755/4" /
+  "CLASS 755/3" layout. A depot with a single class (e.g. Ilford, all
+  720/5) gets one plain table instead.
 
 ## Usage
 
