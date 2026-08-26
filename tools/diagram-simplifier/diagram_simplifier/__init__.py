@@ -1,6 +1,7 @@
 from .campaign import CampaignConfig, CampaignSite, Rollout, plan_rollout
 from .campaign_workbook import build_campaign_workbook
 from .coupling import CouplingSpan, build_coupling_spans, summarize_coupling
+from .dated_workbook import build_dated_workbook
 from .parser import Diagram, Stop, parse_docx
 from .simplify import SimplifiedRow, build_simplified_rows
 from .workbook import build_workbook
@@ -20,4 +21,5 @@ __all__ = [
     "Rollout",
     "plan_rollout",
     "build_campaign_workbook",
+    "build_dated_workbook",
 ]

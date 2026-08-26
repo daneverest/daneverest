@@ -78,7 +78,7 @@ COUPLINGS_COLUMNS = [
 ]
 
 
-def _write_header_cell(ws: Worksheet, row: int, col: int, title: str, width: float) -> None:
+def write_header_cell(ws: Worksheet, row: int, col: int, title: str, width: float) -> None:
     cell = ws.cell(row=row, column=col, value=title)
     cell.font = HEADER_FONT
     cell.fill = HEADER_FILL
@@ -89,14 +89,14 @@ def _write_header_cell(ws: Worksheet, row: int, col: int, title: str, width: flo
     )
 
 
-def _write_header(ws: Worksheet, columns: list[tuple[str, int]], row: int, class_label: str | None = None) -> None:
+def write_header(ws: Worksheet, columns: list[tuple[str, int]], row: int, class_label: str | None = None) -> None:
     for idx, (title, width) in enumerate(columns, start=1):
-        _write_header_cell(ws, row, idx, title, width)
+        write_header_cell(ws, row, idx, title, width)
     if class_label:
-        _write_header_cell(ws, row, CLASS_LABEL_COLUMN, f"CLASS {class_label}", 14)
+        write_header_cell(ws, row, len(columns) + 1, f"CLASS {class_label}", 14)
 
 
-def _group_by_class(rows: list[SimplifiedRow]) -> list[tuple[str, list[SimplifiedRow]]]:
+def group_by_class(rows: list[SimplifiedRow]) -> list[tuple[str, list[SimplifiedRow]]]:
     order: list[str] = []
     groups: dict[str, list[SimplifiedRow]] = {}
     for row in rows:
@@ -109,13 +109,13 @@ def _group_by_class(rows: list[SimplifiedRow]) -> list[tuple[str, list[Simplifie
 
 def add_summary_sheet(wb: Workbook, sheet_name: str, rows: list[SimplifiedRow]) -> None:
     ws = wb.create_sheet(sheet_name)
-    groups = _group_by_class(rows)
+    groups = group_by_class(rows)
     show_class_labels = len(groups) > 1
 
     r = 1
     for cls, group_rows in groups:
         header_row = r
-        _write_header(ws, SUMMARY_COLUMNS, header_row, cls if show_class_labels else None)
+        write_header(ws, SUMMARY_COLUMNS, header_row, cls if show_class_labels else None)
         if header_row == 1:
             ws.freeze_panes = ws.cell(row=header_row + 1, column=1)
         r += 1
@@ -172,7 +172,7 @@ def add_summary_sheet(wb: Workbook, sheet_name: str, rows: list[SimplifiedRow]) 
 
 def add_detail_sheet(wb: Workbook, entries: list[tuple[str, Diagram]]) -> None:
     ws = wb.create_sheet("Full Detail")
-    _write_header(ws, DETAIL_COLUMNS, row=1)
+    write_header(ws, DETAIL_COLUMNS, row=1)
 
     r = 2
     for day_type, d in entries:
@@ -214,7 +214,7 @@ def add_couplings_sheet(wb: Workbook, entries: list[tuple[str, Diagram]]) -> Non
     a one-end-only fault restriction that isn't itself in the diagram book.
     """
     ws = wb.create_sheet("Couplings")
-    _write_header(ws, COUPLINGS_COLUMNS, row=1)
+    write_header(ws, COUPLINGS_COLUMNS, row=1)
 
     r = 2
     for day_type, d in entries:

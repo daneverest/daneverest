@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import time
+from datetime import date, time
 
 from .coupling import build_coupling_spans, summarize_coupling
 from .parser import Diagram, Stop
@@ -75,6 +75,60 @@ def day_coverage(days_code: str) -> int:
         else:
             i += 1
     return len(found) if found else 1
+
+
+_WEEKDAY_INDEX = {"M": 0, "T": 1, "W": 2, "Th": 3, "F": 4, "Sa": 5, "Su": 6}
+
+
+def decode_days_weekdays(days_code: str) -> set[int]:
+    """Decode a ``Days`` code (e.g. ``"MTThO"``, ``"SX"``) into the set of
+    weekday indices it applies to (Monday=0 .. Sunday=6). Used to check
+    whether a diagram *variant* actually runs on a specific calendar date --
+    a single "one-off week" document (e.g. a Christmas STP book) can carry
+    several variants of the same diagram number, each valid over a
+    different, possibly overlapping date range and day pattern, of which
+    only one is normally live on any given date."""
+    code = days_code.strip()
+    if code == "SX":
+        return {0, 1, 2, 3, 4}
+    if code == "SO":
+        return {5}
+    if code == "Su":
+        return {6}
+    found: set[int] = set()
+    i = 0
+    while i < len(code):
+        for tok in _DAY_TOKENS:
+            if code[i : i + len(tok)] == tok:
+                found.add(_WEEKDAY_INDEX[tok])
+                i += len(tok)
+                break
+        else:
+            i += 1
+    return found
+
+
+def parse_ddmmyyyy(raw: str) -> date | None:
+    parts = raw.strip().split("/")
+    if len(parts) != 3:
+        return None
+    try:
+        d, m, y = (int(p) for p in parts)
+        return date(y, m, d)
+    except ValueError:
+        return None
+
+
+def variant_covers_date(d: Diagram, target: date) -> bool:
+    """Whether this diagram variant is actually live on `target`: its date
+    range spans it, and its Days code includes that weekday."""
+    valid_from = parse_ddmmyyyy(d.valid_from)
+    valid_to = parse_ddmmyyyy(d.valid_to)
+    if valid_from and target < valid_from:
+        return False
+    if valid_to and target > valid_to:
+        return False
+    return target.weekday() in decode_days_weekdays(d.days)
 
 
 def _fmt_time(t: time | None) -> str:
@@ -233,7 +287,18 @@ def _row_differs(a: dict, b: dict) -> bool:
     return False
 
 
-def build_simplified_rows(diagrams: list[Diagram]) -> list[SimplifiedRow]:
+def build_simplified_rows(diagrams: list[Diagram], target_date: date | None = None) -> list[SimplifiedRow]:
+    """Reduce `diagrams` to one Simplifier row per diagram number.
+
+    Without `target_date`, picks the widest-day-coverage variant of each
+    diagram number as the primary row (the weekly-recurring-timetable
+    case). With `target_date`, only variants actually live on that calendar
+    date (see `variant_covers_date`) are considered -- the case for a
+    one-off period (e.g. a Christmas STP book) where several variants of
+    the same diagram number can carry different, date-scoped patterns and
+    only one is genuinely running on any given day; a diagram with no
+    variant covering that date is omitted entirely.
+    """
     groups: dict[tuple[str, str], list[Diagram]] = {}
     for d in diagrams:
         groups.setdefault((d.depot_code, d.number), []).append(d)
@@ -247,6 +312,10 @@ def build_simplified_rows(diagrams: list[Diagram]) -> list[SimplifiedRow]:
 
     rows: list[SimplifiedRow] = []
     for (_depot, _number), variants in sorted(groups.items(), key=sort_key):
+        if target_date is not None:
+            variants = [d for d in variants if variant_covers_date(d, target_date)]
+            if not variants:
+                continue
         variants_sorted = sorted(variants, key=lambda d: day_coverage(d.days), reverse=True)
         primary = variants_sorted[0]
         primary_reduced = _reduce_variant(primary)
@@ -314,3 +383,24 @@ def build_simplified_rows(diagrams: list[Diagram]) -> list[SimplifiedRow]:
         )
 
     return rows
+
+
+def primary_diagram_for(diagrams: list[Diagram], target_date: date | None = None) -> dict[str, Diagram]:
+    """{diagram_no: the Diagram variant `build_simplified_rows` used as
+    that row's primary} -- for callers that need the underlying raw
+    diagram (e.g. to pull a depot-specific field the generic
+    SimplifiedRow schema doesn't carry, such as a Norwich-area passenger
+    arrival time). Uses the exact same selection as `build_simplified_rows`."""
+    groups: dict[tuple[str, str], list[Diagram]] = {}
+    for d in diagrams:
+        groups.setdefault((d.depot_code, d.number), []).append(d)
+
+    result: dict[str, Diagram] = {}
+    for variants in groups.values():
+        if target_date is not None:
+            variants = [d for d in variants if variant_covers_date(d, target_date)]
+            if not variants:
+                continue
+        primary = max(variants, key=lambda d: day_coverage(d.days))
+        result[primary.diagram_no] = primary
+    return result

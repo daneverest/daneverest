@@ -152,6 +152,50 @@ and diagram structure, not depot-specific names), this same tool should work
 unmodified on the next iteration of the timetable, or on diagrams for a
 different depot — just point it at the new set of three `.docx` files.
 
+## One-off periods (e.g. Christmas week): `dated_cli.py`
+
+A special-working diagram book (Christmas STP diagrams, an engineering
+blockade) doesn't split neatly into recurring SX/SO/Su day-types the way a
+normal weekly timetable does. Instead, one document can carry *several
+variants of the same diagram number*, each scoped to its own date range and
+day pattern (e.g. `MTThO` valid 28/12–31/12, `FSX` valid 28/12–31/12 -- only
+one of which is actually live on any given date) and mix multiple depots
+and fleets in one file. `dated_cli.py` handles that case directly: pass it
+a target calendar date, and for each diagram number it keeps only the
+variant whose `Days` code covers that date's weekday *and* whose
+`From`–`To` range spans the date -- a variant whose range merely overlaps
+the date but whose day pattern doesn't (e.g. that `FSX` example above,
+which never actually lands on a Thursday within its own date range) is
+correctly left out.
+
+```
+python -m diagram_simplifier.dated_cli \
+    --date 2026-12-31 -o Xmas_31_Dec.xlsx \
+    GAUnitsWk39ThODRAFT.docx
+```
+
+Output is one sheet per **fleet** (the digits before the "/" in the unit
+class -- 720, 745, 755, ...), named for the date to match a hand-built
+Simplifier for the same kind of period, e.g. `745s Thu 31st Dec` / `755s
+Thu 31st Dec` / `720s Thu 31st Dec`. The 745 fleet's sheet additionally
+carries the reference workbook's own extra columns:
+
+- **Norwich Stn Arr**, derived from the raw diagram: the last
+  *passenger-carrying* arrival at plain "Norwich" (not "Norwich
+  Victoria"/"Jubilee"/"Crown Point"/etc, which are depot sidings) -- i.e.
+  where revenue service ends and the unit goes off to a depot for the day.
+  This sits *before* any Day Stable dwell, matching the reference's own
+  pattern.
+- **CET / Sand / Pot Water** (servicing needs -- toilet tank, sanding gear,
+  potable water), left blank. These aren't recorded in the diagram book at
+  all -- they're manual annotations in the reference workbook, so the sheet
+  is generated ready for the same manual fill-in rather than guessed at.
+
+Every other fleet gets the standard columns (with Coupling / Coupling
+Pattern included, same as the main Simplifier), grouped into a `CLASS X`
+block per unit class when a fleet spans more than one, same as the weekly
+tool.
+
 ## Campaign rollout planner
 
 A second script, `campaign_cli.py`, runs alongside the Simplifier to plan a
@@ -249,3 +293,6 @@ diagrams themselves show.
 - `diagram_simplifier/campaign.py` — campaign rollout scheduling engine.
 - `diagram_simplifier/campaign_workbook.py` — writes the campaign `.xlsx`.
 - `diagram_simplifier/campaign_cli.py` — campaign command-line entry point.
+- `diagram_simplifier/dated_workbook.py` — writes a per-fleet, per-calendar-date
+  `.xlsx` for a one-off period (e.g. Christmas week).
+- `diagram_simplifier/dated_cli.py` — dated command-line entry point.
