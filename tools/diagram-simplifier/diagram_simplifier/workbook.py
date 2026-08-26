@@ -15,6 +15,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
+from .coupling import build_coupling_spans
 from .parser import Diagram
 from .simplify import SimplifiedRow
 
@@ -22,6 +23,7 @@ HEADER_FILL = PatternFill("solid", fgColor="1F4E78")
 HEADER_FONT = Font(name="Calibri", bold=True, color="FFFFFF")
 FLAG_FILL = PatternFill("solid", fgColor="FFC7CE")
 ECS_FILL = PatternFill("solid", fgColor="E2EFDA")
+MIXED_COUPLING_FILL = PatternFill("solid", fgColor="FFD966")
 THIN = Side(style="thin", color="B7B7B7")
 BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 
@@ -36,8 +38,11 @@ SUMMARY_COLUMNS = [
     ("Stabling Location", 20),
     ("PM Arr Time", 12),
     ("Mileage", 10),
+    ("Coupling", 55),
+    ("Coupling Pattern", 16),
     ("Notes", 70),
 ]
+COUPLING_PATTERN_COLUMN = 12
 CLASS_LABEL_COLUMN = len(SUMMARY_COLUMNS) + 1
 
 DETAIL_COLUMNS = [
@@ -57,6 +62,19 @@ DETAIL_COLUMNS = [
     ("Route", 10),
     ("Leg Mileage", 11),
     ("Cum Mileage", 11),
+]
+
+COUPLINGS_COLUMNS = [
+    ("Day Type", 10),
+    ("Diagram No", 12),
+    ("Days", 10),
+    ("Class", 10),
+    ("Partner(s)", 20),
+    ("Role", 20),
+    ("From Location", 20),
+    ("From Time", 10),
+    ("To Location", 20),
+    ("To Time", 10),
 ]
 
 
@@ -115,6 +133,8 @@ def add_summary_sheet(wb: Workbook, sheet_name: str, rows: list[SimplifiedRow]) 
                 row.stabling_location,
                 row.pm_arr_time,
                 row.mileage,
+                row.coupling,
+                row.coupling_pattern,
                 row.notes,
             ]
             for c, value in enumerate(values, start=1):
@@ -131,6 +151,12 @@ def add_summary_sheet(wb: Workbook, sheet_name: str, rows: list[SimplifiedRow]) 
             elif row.is_ecs_only:
                 for c in range(1, len(SUMMARY_COLUMNS) + 1):
                     ws.cell(row=r, column=c).fill = ECS_FILL
+            # A diagram that swaps ends while coupled is exactly what a
+            # one-end-only restriction (a defective coupler, a "boxed"
+            # fault) needs flagging -- call it out regardless of the
+            # row-level DO NOT USE/ECS fill above.
+            if row.coupling_pattern == "Mixed":
+                ws.cell(row=r, column=COUPLING_PATTERN_COLUMN).fill = MIXED_COUPLING_FILL
             r += 1
         last_data_row = r - 1
 
@@ -180,11 +206,50 @@ def add_detail_sheet(wb: Workbook, entries: list[tuple[str, Diagram]]) -> None:
     ws.auto_filter.ref = f"A1:{get_column_letter(len(DETAIL_COLUMNS))}{r - 1}"
 
 
+def add_couplings_sheet(wb: Workbook, entries: list[tuple[str, Diagram]]) -> None:
+    """One row per coupling span (a run of consecutive legs attached to the
+    same partner diagram(s)) for every diagram variant -- the leg-by-leg
+    record of exactly when a diagram ran attached to another, in what
+    position, so it can be checked against a software-compatibility list or
+    a one-end-only fault restriction that isn't itself in the diagram book.
+    """
+    ws = wb.create_sheet("Couplings")
+    _write_header(ws, COUPLINGS_COLUMNS, row=1)
+
+    r = 2
+    for day_type, d in entries:
+        for span in build_coupling_spans(d):
+            values = [
+                day_type,
+                d.diagram_no,
+                d.days,
+                d.unit_class,
+                span.partner_text,
+                span.role_summary,
+                span.start_location,
+                span.start_time,
+                span.end_location,
+                span.end_time,
+            ]
+            for c, value in enumerate(values, start=1):
+                cell = ws.cell(row=r, column=c, value=value)
+                if c in (8, 10):
+                    cell.number_format = "hh:mm"
+            if "mixed" in span.role_summary:
+                for c in range(1, len(COUPLINGS_COLUMNS) + 1):
+                    ws.cell(row=r, column=c).fill = MIXED_COUPLING_FILL
+            r += 1
+
+    if r > 2:
+        ws.auto_filter.ref = f"A1:{get_column_letter(len(COUPLINGS_COLUMNS))}{r - 1}"
+
+
 def build_workbook(sheets: dict[str, list[SimplifiedRow]], detail_entries: list[tuple[str, Diagram]]) -> Workbook:
     wb = Workbook()
     wb.remove(wb.active)
     for sheet_name, rows in sheets.items():
         add_summary_sheet(wb, sheet_name, rows)
     if detail_entries:
+        add_couplings_sheet(wb, detail_entries)
         add_detail_sheet(wb, detail_entries)
     return wb

@@ -90,6 +90,40 @@ Key conventions decoded from the data:
   "CLASS 755/3" layout. A depot with a single class (e.g. Ilford, all
   720/5) gets one plain table instead.
 
+## Coupling detection
+
+The "Coupled" field on a leg (e.g. `383(1)\407(2)`) isn't a fleet stock
+number as it first appears — it's *other diagram numbers*, each tagged with
+its position in the formation: `(1)` is the leading portion, the highest
+number present is the trailing portion, and anything in between (a 3+ unit
+formation) is a middle portion. This was confirmed by cross-referencing:
+diagrams 383 and 407 record byte-for-byte identical stops for as long as
+they're shown running together, then diverge the instant they part company —
+i.e. a diagram in a coupled working always lists itself alongside its
+partner(s), so the coupling — and any point where the two swap ends at a
+reversal — can be read straight off the diagram book with no outside data.
+
+This surfaces as:
+
+- **Coupling** / **Coupling Pattern** columns on each summary sheet: a
+  plain-English account of who a diagram ran attached to, when, and in what
+  position (e.g. `Coupled with IL407 (leading) Ilford EMUD 06:33 –
+  Liverpool St 09:39`), plus a one-word tag — `Always Leading` / `Always
+  Trailing` / `Always Middle` / `Mixed` — for whether it ever swapped ends.
+  A `Mixed` diagram is highlighted, since a unit that has to stay at one
+  end (a defective coupler, a fault that must be "boxed" between two
+  working units) would show up here as a violation the moment it doesn't.
+- A **Couplings** sheet: the same thing at full leg-by-leg granularity,
+  across every day-of-week variant of every diagram, for auditing.
+
+What this **can't** do is know *why* two units shouldn't mix, or which
+specific units carry a software version or a fault restriction — that's
+fleet/engineering data the diagram book itself doesn't contain. What it
+gives you is the other half of that check: the complete, accurate record of
+which diagram actually ran coupled to which, when, and at which end, so it
+can be checked against a restriction list or software-campaign roster you
+supply separately.
+
 ## Usage
 
 ```

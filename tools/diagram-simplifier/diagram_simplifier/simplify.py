@@ -16,6 +16,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import time
 
+from .coupling import build_coupling_spans, summarize_coupling
 from .parser import Diagram, Stop
 
 _DAY_TOKENS = ["Th", "Sa", "Su", "M", "T", "W", "F"]
@@ -104,6 +105,8 @@ class SimplifiedRow:
     stabling_location: str
     pm_arr_time: time | None
     mileage: float | None
+    coupling: str
+    coupling_pattern: str
     notes: str
     is_ecs_only: bool
     flagged_do_not_use: bool
@@ -278,6 +281,8 @@ def build_simplified_rows(diagrams: list[Diagram]) -> list[SimplifiedRow]:
             "DO NOT USE" in n.upper() for v in variants for n in v.notes
         )
 
+        coupling_text, coupling_pattern = summarize_coupling(build_coupling_spans(primary))
+
         rows.append(
             SimplifiedRow(
                 diagram_no=primary.diagram_no,
@@ -292,6 +297,8 @@ def build_simplified_rows(diagrams: list[Diagram]) -> list[SimplifiedRow]:
                 stabling_location=primary_reduced["stabling_location"],
                 pm_arr_time=primary_reduced["pm_arr_time"],
                 mileage=primary.total,
+                coupling=coupling_text,
+                coupling_pattern=coupling_pattern,
                 notes="; ".join(notes),
                 is_ecs_only=primary.is_ecs_only,
                 flagged_do_not_use=flagged,
