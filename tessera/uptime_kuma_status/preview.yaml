@@ -1,0 +1,64 @@
+# What the plugins repository's tools/preview.py shows (docs/PREVIEW.md): status pages of monitors as Home
+# Assistant's Uptime Kuma integration names them. The first example shows best, so the Plugins page's picture leads
+# with it: a homelab with one monitor down and one pending.
+tiles:
+  - tile: status_page
+    name: Homelab
+    options:
+      title: Homelab
+      monitor_1: sensor.internet_status
+      monitor_2: sensor.home_assistant_status
+      monitor_3: sensor.proxmox_host_status
+      monitor_4: sensor.mqtt_broker_status
+      monitor_5: sensor.zigbee2mqtt_status
+      monitor_6: sensor.bookstack_status
+      monitor_7: sensor.garage_camera_status
+      monitor_8: sensor.homarr_status
+  - tile: status_page
+    name: Network
+    options:
+      monitor_1: sensor.internet_status
+      monitor_2: sensor.internet_cloudflare_status
+      monitor_3: sensor.internet_google_status
+      monitor_4: sensor.ee_hub_status
+    sizes: [1x1, 2x2]
+  - tile: status_page
+    name: Not set up
+    sizes: [2x1]
+
+states:
+  sensor.internet_status:
+    state: up
+    attributes: { friendly_name: Internet Status, device_class: enum, options: [down, up, pending, maintenance] }
+  sensor.internet_cloudflare_status:
+    state: up
+    attributes: { friendly_name: Internet (Cloudflare) Status, device_class: enum }
+  sensor.internet_google_status:
+    state: up
+    attributes: { friendly_name: Internet (Google) Status, device_class: enum }
+  sensor.ee_hub_status:
+    state: up
+    attributes: { friendly_name: EE Hub Status, device_class: enum }
+  sensor.home_assistant_status:
+    state: up
+    attributes: { friendly_name: Home Assistant Status, device_class: enum }
+  sensor.proxmox_host_status:
+    state: up
+    attributes: { friendly_name: Proxmox Host Status, device_class: enum }
+  sensor.mqtt_broker_status:
+    state: up
+    attributes: { friendly_name: MQTT Broker Status, device_class: enum }
+  sensor.zigbee2mqtt_status:
+    state: pending
+    attributes: { friendly_name: Zigbee2MQTT Status, device_class: enum }
+  sensor.bookstack_status:
+    state: up
+    attributes: { friendly_name: BookStack Status, device_class: enum }
+  sensor.garage_camera_status:
+    state: down
+    attributes: { friendly_name: Garage Camera Status, device_class: enum }
+  sensor.homarr_status:
+    state: maintenance
+    attributes: { friendly_name: Homarr Status, device_class: enum }
+
+time_zone: Europe/London

@@ -1,0 +1,46 @@
+# The manifest: who made the plugin, what it may do, and what the Tessera app shows. It holds no code and no words:
+# every name, label and hint below is a key into translations/<language>.json, part "app".
+# Every field is explained in the plugins repository's docs/MANIFEST.md.
+#
+# A status page of Uptime Kuma monitors, drawn from the entities of Home Assistant's own Uptime Kuma integration
+# (uptime_kuma, Home Assistant 2025.8 and later). That integration makes one device per monitor with a status sensor
+# (sensor.<monitor>_status, an enum of up, down, pending and maintenance); the person picks up to ten of those per tile.
+# Nothing is fetched from Uptime Kuma itself: the app only forwards entities Home Assistant already has, so the plugin
+# needs no network permission and no key, and works on a Kuma that is only reachable inside the home.
+id: uptime_kuma_status
+version: 0.1.0
+# 0.15 for options of kind entity (entities chosen per tile, sent under `entities`); 0.9 parts (Tone::GOOD,
+# ui::set_fill, ui::tone_color) come with it.
+api: "0.15"
+icon: check-network-outline
+maintainer: daneverest
+license: MIT
+stage: beta
+topics: [tech]
+requires:
+  esphome: 2026.6.2
+boards: any
+flash_kb: 10
+
+tiles:
+  - id: status_page
+    name: tile_name
+    icon: check-network-outline
+    sizes: { min: 1x1, max: 4x4 }
+    # The banner (a block, a dot and two labels), a title, a "more" line, and up to ten rows of a dot and two labels
+    # (about 280 bytes each), plus the tile's own record of ten monitors (about 600 bytes).
+    memory: 3800
+    example: tile_example
+    options:
+      - { id: title, kind: text, label: title, hint: title_hint }
+      - { id: monitor_1, kind: entity, domains: [sensor], label: monitor_1, hint: monitor_hint }
+      - { id: monitor_2, kind: entity, domains: [sensor], label: monitor_2 }
+      - { id: monitor_3, kind: entity, domains: [sensor], label: monitor_3 }
+      - { id: monitor_4, kind: entity, domains: [sensor], label: monitor_4 }
+      - { id: monitor_5, kind: entity, domains: [sensor], label: monitor_5 }
+      - { id: monitor_6, kind: entity, domains: [sensor], label: monitor_6 }
+      - { id: monitor_7, kind: entity, domains: [sensor], label: monitor_7 }
+      - { id: monitor_8, kind: entity, domains: [sensor], label: monitor_8 }
+      - { id: monitor_9, kind: entity, domains: [sensor], label: monitor_9 }
+      - { id: monitor_10, kind: entity, domains: [sensor], label: monitor_10 }
+      - { id: problems_first, kind: toggle, default: true, label: problems_first, hint: problems_first_hint }
